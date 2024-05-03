@@ -1,0 +1,23 @@
+Vagrant.configure("2") do |config|
+  servers = [
+    { hostname: "ad", ip: "10.16.1.51" },
+    { hostname: "database", ip: "10.16.1.52" },
+    { hostname: "scenter", ip: "10.16.1.53" }
+  ]
+
+  servers.each do |machine|
+    config.vm.define machine[:hostname] do |node|
+      node.vm.box = "gusztavvargadr/windows-server"
+      node.vm.hostname = machine[:hostname]
+      node.vm.network :private_network, ip: machine[:ip]
+
+      node.vm.provider :hyperv do |hv|
+        hv.cpus = "2"
+        hv.memory = "1024"
+        hv.enable_checkpoints = false
+        hv.enable_enhanced_session_mode = true
+        hv.vmname = machine[:hostname]
+      end
+    end
+  end
+end

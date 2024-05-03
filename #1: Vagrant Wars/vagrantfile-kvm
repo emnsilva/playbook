@@ -1,0 +1,23 @@
+Vagrant.configure("2") do |config|
+  servers = [
+    { hostname: "ad", ip: "10.16.1.51" },
+    { hostname: "database", ip: "10.16.1.52" },
+    { hostname: "scenter", ip: "10.16.1.53" }
+  ]
+
+  servers.each do |machine|
+    config.vm.define machine[:hostname] do |node|
+      node.vm.box = "pfit/ubuntu-server-2004_xfce"  # Altere para uma box compatível com KVM
+      node.vm.hostname = machine[:hostname]
+      node.vm.network :private_network, ip: machine[:ip]
+
+      node.vm.provider :libvirt do |lv|
+        lv.cpus = 2
+        lv.memory = 1024
+        lv.nested = true  # Habilita a virtualização aninhada se necessário
+        lv.graphics_type = "none"  # Desabilita a interface gráfica
+        lv.video_type = "none"
+      end
+    end
+  end
+end

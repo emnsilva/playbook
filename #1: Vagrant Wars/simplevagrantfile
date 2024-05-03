@@ -1,0 +1,26 @@
+# Vagrantfile API/syntax version. Don't touch unless you know what you're doing!
+VAGRANTFILE_API_VERSION = "2"
+
+Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
+  # Create a public network, which generally matched to bridged network.
+  # Bridged networks make the machine appear as another physical device on
+  # your network.
+  config.vm.network "private_network", bridge: "{Default Switch}"
+  
+  # If true, then any SSH connections made will enable agent forwarding.
+  # Default value: false
+  config.ssh.forward_agent = true
+
+  config.vm.provider "hyperv" do |hv|
+   hv.cpus = "1"
+   hv.enable_checkpoints = false
+   hv.enable_enhanced_session_mode = true
+   hv.memory = "2048"
+   hv.vmname = "Ubuntu"
+  end
+  
+  config.vm.define "Ubuntu" do |ub|
+   ub.vm.box = "generic/ubuntu1804"
+   ub.vm.hostname = "Ubuntu"
+  end  
+ end
