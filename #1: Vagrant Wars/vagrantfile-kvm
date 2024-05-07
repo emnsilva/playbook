@@ -1,22 +1,36 @@
+require 'json'
+
 Vagrant.configure("2") do |config|
+  DEFAULT_BOX = "generic/ubuntu2004"
+  CPU_CORES = 2
+  MEMORY = 1024
+
+  # Caminho para o arquivo de credenciais no Linux
+  credentials_path = "STORAGE_LOCATION/smb_credentials.json"
+  if File.exist?(credentials_path)
+    credentials = JSON.parse(File.read(credentials_path))
+    smb_username = credentials['username']
+    smb_password = credentials['password']
+  else
+    raise "Arquivo de credenciais não encontrado: #{credentials_path}"
+  end
+
   servers = [
-    { hostname: "ad", ip: "10.16.1.51" },
-    { hostname: "database", ip: "10.16.1.52" },
-    { hostname: "scenter", ip: "10.16.1.53" }
+    { hostname: :ad },
+    { hostname: :database },
+    { hostname: :scenter }
   ]
 
   servers.each do |machine|
     config.vm.define machine[:hostname] do |node|
-      node.vm.box = "pfit/ubuntu-server-2004_xfce"  # Altere para uma box compatível com KVM
-      node.vm.hostname = machine[:hostname]
-      node.vm.network :private_network, ip: machine[:ip]
+      node.vm.box = DEFAULT_BOX
+      node.vm.hostname = machine[:hostname].to_s
+      node.vm.network :private_network
+      node.vm.synced_folder '.', '/vagrant', type: 'smb', smb_username: smb_username, smb_password: smb_password
 
       node.vm.provider :libvirt do |lv|
-        lv.cpus = 2
-        lv.memory = 1024
-        lv.nested = true  # Habilita a virtualização aninhada se necessário
-        lv.graphics_type = "none"  # Desabilita a interface gráfica
-        lv.video_type = "none"
+        lv.cpus = CPU_CORES
+        lv.memory = MEMORY
       end
     end
   end
