@@ -8,11 +8,11 @@ Vagrant.configure("2") do |config|
   IP_TIMEOUT = 600
 
   # Especificando o caminho absoluto para o arquivo de credenciais no Windows
-  credentials_path = "STORAGE_LOCATION/smb_credentials.json"
+  credentials_path = "STORAGE_LOCATION/credentials.json"
   if File.exist?(credentials_path)
     credentials = JSON.parse(File.read(credentials_path))
-    smb_username = credentials['username']
-    smb_password = credentials['password']
+    username = credentials['username']
+    password = credentials['password']
   else
     raise "Arquivo de credenciais não encontrado: #{credentials_path}"
   end
@@ -28,7 +28,7 @@ Vagrant.configure("2") do |config|
       node.vm.box = DEFAULT_BOX
       node.vm.hostname = machine[:hostname].to_s
       node.vm.network :private_network
-      node.vm.synced_folder '.', '/vagrant', type: 'smb', smb_username: smb_username, smb_password: smb_password
+      node.vm.synced_folder '.', '/vagrant', type: 'smb', username: username, password: password
       node.vm.boot_timeout = BOOT_TIMEOUT
 
       node.vm.provider :hyperv do |hv|
