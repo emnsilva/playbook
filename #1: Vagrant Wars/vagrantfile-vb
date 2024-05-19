@@ -1,0 +1,55 @@
+require 'json'
+
+Vagrant.configure("2") do |config|
+  DEFAULT_BOX = "generic/ubuntu2004"
+  CPU_CORES = 2
+  MEMORY = 1024
+
+  # Caminho para o arquivo de credenciais no Linux
+  credentials_path = "/ubuntu/HD/credentials.json"
+  if File.exist?(credentials_path)
+    credentials = JSON.parse(File.read(credentials_path))
+    username = credentials['username']
+    password = credentials['password']
+  else
+    raise "Arquivo de credenciais não encontrado: #{credentials_path}"
+  end
+
+  servers = [
+    { hostname: :ad }
+  ]
+
+  servers.each do |machine|
+    config.vm.define machine[:hostname] do |node|
+      node.vm.box = DEFAULT_BOX
+      node.vm.hostname = machine[:hostname].to_s
+
+      # Desativar a inserção automática de chaves SSH
+      node.ssh.insert_key = false
+      node.ssh.username = username
+      node.ssh.password = password
+
+      # Configurar NFS e permissões
+      node.vm.synced_folder '.', '/vagrant', type: 'nfs', nfs_udp: false
+
+      # Provisionar NFS no Vagrantfile
+      node.vm.provision "shell", inline: <<-SHELL
+        SHARE_DIR="/ubuntu/HD"
+        sudo mkdir -p $SHARE_DIR
+        sudo chown nobody:nogroup $SHARE_DIR
+        sudo chmod 777 $SHARE_DIR
+        EXPORTS_LINE="$SHARE_DIR *(rw,sync,no_subtree_check)"
+        if ! grep -qF "$EXPORTS_LINE" /etc/exports; then
+            echo "$EXPORTS_LINE" | sudo tee -a /etc/exports
+        fi
+        sudo systemctl restart nfs-kernel-server
+        sudo systemctl enable nfs-kernel-server
+      SHELL
+
+      node.vm.provider :virtualbox do |vb|
+        vb.cpus = CPU_CORES
+        vb.memory = MEMORY
+      end
+    end
+  end
+end
