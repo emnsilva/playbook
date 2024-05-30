@@ -1,0 +1,5 @@
+{
+  "vmIp": "VM_IP_address",
+  "vmUser": "VM_admin",
+  "vmPassword": "password"
+}
