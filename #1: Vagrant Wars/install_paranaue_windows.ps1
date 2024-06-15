@@ -2,7 +2,7 @@
 # Enable-WindowsOptionalFeature -FeatureName Microsoft-Hyper-V -All -Online -NoRestart
 
 # Instala o Hyper-V no Windows Server
-Install-WindowsFeature -Name Hyper-V -IncludeManagementTools -NoRestart
+Install-WindowsFeature -Name Hyper-V -IncludeManagementTools
 
 # Instala o Chocolatey e os pacotes necessários
 Set-ExecutionPolicy Bypass -Scope Process -Force
