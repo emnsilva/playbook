@@ -1,0 +1,43 @@
+---
+- name: Load credentials
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Load JSON file
+      include_vars:
+        file: /mnt/c/credentials.json
+        name: creds
+      no_log: true
+
+    - name: Set credentials as facts
+      set_fact:
+        vm_user: "{{ creds.AdminUsername }}"
+        vm_password: "{{ creds.AdminPassword }}"
+      no_log: true
+
+- name: Configure Active Directory
+  hosts: ad
+  gather_facts: no
+  vars:
+    domain_name: "paranaue.com"
+  tasks:
+    - name: Ensure Active Directory is installed
+      win_feature:
+        name: AD-Domain-Services
+        state: present
+
+    - name: Install management tools
+      win_feature:
+        name: RSAT-AD-AdminCenter
+        state: present
+
+    - name: Promote to domain controller
+      win_shell: |
+        $SecureString = ConvertTo-SecureString "{{ hostvars['localhost']['vm_password'] }}" -AsPlainText -Force
+        Install-ADDSForest `
+          -DomainName "{{ domain_name }}" `
+          -InstallDNS `
+          -SafeModeAdministratorPassword $SecureString `
+          -Force
+      args:
+        executable: powershell.exe
