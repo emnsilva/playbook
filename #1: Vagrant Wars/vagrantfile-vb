@@ -16,7 +16,8 @@ Vagrant.configure("2") do |config|
   end
 
   servers = [
-    { hostname: :ad },
+    { hostname: :domain },
+    { hostname: :certificate },
     { hostname: :database },
     { hostname: :scenter }
   ]
