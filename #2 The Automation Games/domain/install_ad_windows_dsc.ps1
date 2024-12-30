@@ -12,7 +12,7 @@ function Get-CredentialAndVMFromJson {
 }
 
 # Caminho para o arquivo JSON
-$jsonPath = "credentials.json"
+$jsonPath = "credentials_ad.json"
 
 # Obter as credenciais e o nome da VM do arquivo JSON
 $config = Get-CredentialAndVMFromJson -jsonPath $jsonPath
