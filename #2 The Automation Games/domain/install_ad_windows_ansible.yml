@@ -1,11 +1,11 @@
 ---
-- name: Load credentials
+- name: Load credentials_ad
   hosts: localhost
   gather_facts: no
   tasks:
     - name: Load JSON file
       include_vars:
-        file: /mnt/c/credentials.json
+        file: /mnt/c/credentials_ad.json
         name: creds
       no_log: true
 
