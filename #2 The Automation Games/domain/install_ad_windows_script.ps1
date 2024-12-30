@@ -1,5 +1,5 @@
 # Caminho para o arquivo JSON
-$credentialsPath = "credentials.json"
+$credentialsPath = "credentials_ad.json"
 
 # Ler o conteúdo do arquivo JSON e verificar se foi carregado corretamente
 $credentials = Get-Content -Path $credentialsPath -Raw | ConvertFrom-Json
