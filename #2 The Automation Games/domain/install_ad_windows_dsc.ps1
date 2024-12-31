@@ -1,4 +1,11 @@
-# Função para ler credenciais e nome da VM do arquivo JSON
+# ========================================================
+# CONFIGURAÇÃO INICIAL
+# ========================================================
+
+# Caminho para o arquivo JSON contendo as credenciais e configurações
+$jsonPath = "credentials_ad.json"
+
+# Função para carregar credenciais e nome da VM do arquivo JSON
 function Get-CredentialAndVMFromJson {
     param ([string]$jsonPath)
 
@@ -11,18 +18,19 @@ function Get-CredentialAndVMFromJson {
     }
 }
 
-# Caminho para o arquivo JSON
-$jsonPath = "credentials_ad.json"
-
-# Obter as credenciais e o nome da VM do arquivo JSON
+# Carregar configurações do arquivo JSON
 $config = Get-CredentialAndVMFromJson -jsonPath $jsonPath
 $credential = $config.Credential
 $vmName = $config.VMName
 
+# ========================================================
+# INSTALAÇÃO DOS MÓDULOS E FUNCIONALIDADES
+# ========================================================
+
 # Criar uma sessão remota para a VM
 $session = New-PSSession -ComputerName $vmName -Credential $credential
 
-# Comando para instalar os módulos DSC e o provedor NuGet
+# Script para instalar os módulos DSC e o provedor NuGet
 $installDSCModulesScript = {
     $nugetUrl = "https://onegetcdn.azureedge.net/providers/Microsoft.PackageManagement.NuGetProvider-2.8.5.208.dll"
     $nugetPath = "$env:TEMP\Microsoft.PackageManagement.NuGetProvider-2.8.5.208.dll"
@@ -32,9 +40,10 @@ $installDSCModulesScript = {
 
     Install-Module -Name 'xActiveDirectory' -Force -AllowClobber
     Install-Module -Name 'xPSDesiredStateConfiguration' -Force -AllowClobber
+    Install-WindowsFeature -Name "RSAT-AD-Tools" -IncludeManagementTools
 }
 
-# Executar o comando de instalação na sessão remota
+# Executar o script de instalação na sessão remota
 Invoke-Command -Session $session -ScriptBlock $installDSCModulesScript
 
 # Fechar a sessão remota
@@ -42,13 +51,12 @@ Remove-PSSession -Session $session
 
 Write-Host "Instalação dos módulos DSC e NuGet concluída na VM $vmName."
 
+# ========================================================
+# CONFIGURAÇÃO DO DOMÍNIO AD
+# ========================================================
+
 # Importar o módulo necessário
 Import-Module xActiveDirectory
-
-# Ler as credenciais novamente do arquivo JSON para a configuração do domínio
-$config = Get-CredentialAndVMFromJson -jsonPath $jsonPath
-$credentials = $config.Credential
-$vmName = $config.VMName
 
 # Dados de configuração para o novo domínio (PARANAUE.COM)
 $ConfigData = @{
@@ -63,12 +71,7 @@ $ConfigData = @{
     )
 }
 
-# Credenciais para a configuração do domínio
-$remoteCred = $credentials
-$safemodeCred = $credentials
-$domainAdminCred = $credentials
-
-# Configuração para configurar o domínio AD
+# Configuração para criar o domínio AD
 Configuration NewADDomain {
     param (
         [PSCredential]$safemodeAdministratorPassword,
@@ -103,15 +106,23 @@ Configuration NewADDomain {
 }
 
 # Gerar o arquivo MOF
-NewADDomain -ConfigurationData $ConfigData -safemodeAdministratorPassword $safemodeCred -domainAdministratorCredential $domainAdminCred -DomainName $ConfigData.AllNodes[0].DomainName -OutputPath ".\NewDomain"
+NewADDomain -ConfigurationData $ConfigData `
+             -safemodeAdministratorPassword $credential `
+             -domainAdministratorCredential $credential `
+             -DomainName $ConfigData.AllNodes[0].DomainName `
+             -OutputPath ".\NewDomain"
 
-# Aplicar a configuração
-Start-DscConfiguration -Path ".\NewDomain" -Credential $remoteCred -Wait -Force -Verbose
+# Aplicar a configuração DSC
+Start-DscConfiguration -Path ".\NewDomain" -Credential $credential -Wait -Force -Verbose
 
-# Limpar a configuração local (opcional)
+# Limpar arquivos temporários (opcional)
 Remove-Item -Recurse -Force ".\NewDomain"  # Descomentar se necessário
 
+# ========================================================
+# REINICIALIZAÇÃO DA VM
+# ========================================================
+
 # Reiniciar a VM remotamente
-Invoke-Command -ComputerName $vmName -Credential $credentials -ScriptBlock { Restart-Computer -Force }
+Invoke-Command -ComputerName $vmName -Credential $credential -ScriptBlock { Restart-Computer -Force }
 
 Write-Host "Reinicialização da VM $vmName iniciada."
