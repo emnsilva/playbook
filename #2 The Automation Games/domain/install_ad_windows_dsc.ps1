@@ -1,7 +1,3 @@
-# ========================================================
-# CONFIGURAÇÃO INICIAL
-# ========================================================
-
 # Caminho para o arquivo JSON contendo as credenciais e configurações
 $jsonPath = "credentials_ad.json"
 
@@ -9,23 +5,27 @@ $jsonPath = "credentials_ad.json"
 function Get-CredentialAndVMFromJson {
     param ([string]$jsonPath)
 
+    # Carregar e converter o JSON
     $jsonContent = Get-Content -Path $jsonPath -Raw | ConvertFrom-Json
     $securePassword = ConvertTo-SecureString $jsonContent.AdminPassword -AsPlainText -Force
 
+    # Retornar credenciais e informações da VM
     return @{
-        Credential = New-Object -TypeName PSCredential -ArgumentList $jsonContent.domainAdminUsername, $securePassword
+        Credential = New-Object -TypeName PSCredential -ArgumentList $jsonContent.AdminUsername, $securePassword
+        DomainCredential = New-Object -TypeName PSCredential -ArgumentList $jsonContent.domainAdminUsername, $securePassword
         VMName = $jsonContent.VMName
+        DomainName = $jsonContent.realm
+        ForestName = $jsonContent.domain
     }
 }
 
 # Carregar configurações do arquivo JSON
 $config = Get-CredentialAndVMFromJson -jsonPath $jsonPath
 $credential = $config.Credential
+$domainCredential = $config.DomainCredential
 $vmName = $config.VMName
-
-# ========================================================
-# INSTALAÇÃO DOS MÓDULOS E FUNCIONALIDADES
-# ========================================================
+$domainName = $config.DomainName
+$forestName = $config.ForestName
 
 # Criar uma sessão remota para a VM
 $session = New-PSSession -ComputerName $vmName -Credential $credential
@@ -35,9 +35,11 @@ $installDSCModulesScript = {
     $nugetUrl = "https://onegetcdn.azureedge.net/providers/Microsoft.PackageManagement.NuGetProvider-2.8.5.208.dll"
     $nugetPath = "$env:TEMP\Microsoft.PackageManagement.NuGetProvider-2.8.5.208.dll"
 
+    # Baixar e importar o provedor NuGet
     Invoke-WebRequest -Uri $nugetUrl -OutFile $nugetPath
     Import-PackageProvider -Name $nugetPath -Force
 
+    # Instalar módulos e funcionalidades necessárias
     Install-Module -Name 'xActiveDirectory' -Force -AllowClobber
     Install-Module -Name 'xPSDesiredStateConfiguration' -Force -AllowClobber
     Install-WindowsFeature -Name "RSAT-AD-Tools" -IncludeManagementTools
@@ -51,21 +53,17 @@ Remove-PSSession -Session $session
 
 Write-Host "Instalação dos módulos DSC e NuGet concluída na VM $vmName."
 
-# ========================================================
-# CONFIGURAÇÃO DO DOMÍNIO AD
-# ========================================================
-
 # Importar o módulo necessário
 Import-Module xActiveDirectory
 
-# Dados de configuração para o novo domínio (PARANAUE.COM)
+# Dados de configuração para o novo domínio
 $ConfigData = @{
     AllNodes = @(
         @{
             Nodename = $vmName
             Role = 'Primary DC'
-            DomainName = 'paranaue.com'
-            Forest = 'PARANAUE'
+            DomainName = $domainName
+            Forest = $forestName
             PsDscAllowPlainTextPassword = $true  # Remover para produção (risco de segurança)
         }
     )
@@ -74,15 +72,15 @@ $ConfigData = @{
 # Configuração para criar o domínio AD
 Configuration NewADDomain {
     param (
-        [PSCredential]$safemodeAdministratorPassword,
-        [PSCredential]$domainAdministratorCredential,
+        [PSCredential]$SafeModeAdminPassword,
+        [PSCredential]$DomainAdminCredential,
         [String]$DomainName
     )
 
     Import-DscResource -ModuleName PSDesiredStateConfiguration
     Import-DscResource -ModuleName xActiveDirectory
 
-    Node $AllNodes.Where{$_.Role -eq "Primary DC"}.NodeName {
+    Node $AllNodes.NodeName {
         File NTDSDirectory {
             Ensure = 'Present'
             Type = 'Directory'
@@ -96,8 +94,8 @@ Configuration NewADDomain {
 
         xADDomain FirstDC {
             DomainName = $DomainName
-            DomainAdministratorCredential = $domainAdministratorCredential
-            SafemodeAdministratorPassword = $safemodeAdministratorPassword
+            DomainAdministratorCredential = $DomainAdminCredential
+            SafemodeAdministratorPassword = $SafeModeAdminPassword
             DatabasePath = 'C:\NTDS'
             LogPath = 'C:\NTDS'
             DependsOn = '[File]NTDSDirectory', '[WindowsFeature]ADDS'
@@ -107,9 +105,9 @@ Configuration NewADDomain {
 
 # Gerar o arquivo MOF
 NewADDomain -ConfigurationData $ConfigData `
-             -safemodeAdministratorPassword $credential `
-             -domainAdministratorCredential $credential `
-             -DomainName $ConfigData.AllNodes[0].DomainName `
+             -SafeModeAdminPassword $credential `
+             -DomainAdminCredential $domainCredential `
+             -DomainName $domainName `
              -OutputPath ".\NewDomain"
 
 # Aplicar a configuração DSC
@@ -117,10 +115,6 @@ Start-DscConfiguration -Path ".\NewDomain" -Credential $credential -Wait -Force 
 
 # Limpar arquivos temporários (opcional)
 Remove-Item -Recurse -Force ".\NewDomain"  # Descomentar se necessário
-
-# ========================================================
-# REINICIALIZAÇÃO DA VM
-# ========================================================
 
 # Reiniciar a VM remotamente
 Invoke-Command -ComputerName $vmName -Credential $credential -ScriptBlock { Restart-Computer -Force }
