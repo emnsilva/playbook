@@ -1,39 +1,70 @@
 # Caminho para o arquivo JSON
 $credentialsPath = "credentials_ad.json"
 
-# Ler o conteúdo do arquivo JSON e verificar se foi carregado corretamente
-$credentials = Get-Content -Path $credentialsPath -Raw | ConvertFrom-Json
-if (-not $credentials) { Write-Error "Falha ao carregar o arquivo $credentialsPath"; exit 1 }
+# Função para carregar e validar o JSON
+function Load-Credentials {
+    param ([string]$filePath)
+    try {
+        $content = Get-Content -Path $filePath -Raw | ConvertFrom-Json
+        if (-not $content) { throw "O arquivo está vazio ou inválido." }
+        return $content
+    } catch {
+        Write-Error ("Falha ao carregar ou interpretar o arquivo {0}: {1}" -f $filePath, $_.Exception.Message)
+        exit 1
+    }
+}
 
-# Extrair e validar as informações da VM e credenciais do domínio
-function Get-ValidatedValue($value, $name, $filePath) {
-    if (-not $value) { Write-Error "$name não está definido no arquivo $filePath"; exit 1 }
+# Função para validar valores obrigatórios
+function Get-ValidatedValue {
+    param (
+        [string]$value,
+        [string]$name
+    )
+    if (-not $value) {
+        Write-Error "$name não está definido no arquivo $credentialsPath"
+        exit 1
+    }
     return $value
 }
 
-$vmIp = Get-ValidatedValue $credentials.vmIp "vmIp" $credentialsPath
-$vmUser = Get-ValidatedValue $credentials.AdminUsername "AdminUsername" $credentialsPath
-$vmPassword = Get-ValidatedValue $credentials.AdminPassword "AdminPassword" $credentialsPath
-$domainAdminUser = Get-ValidatedValue $credentials.domainAdminUsername "DomainAdminUser" $credentialsPath
-$domainAdminPassword = Get-ValidatedValue $credentials.AdminPassword "DomainAdminPassword" $credentialsPath
+# Carregar credenciais do arquivo
+$credentials = Load-Credentials -filePath $credentialsPath
 
-# Converter as senhas para SecureString e criar as credenciais
-$vmPasswordSecure = $vmPassword | ConvertTo-SecureString -AsPlainText -Force
-$domainAdminPasswordSecure = $domainAdminPassword | ConvertTo-SecureString -AsPlainText -Force
-$vmCred = New-Object System.Management.Automation.PSCredential ($vmUser, $vmPasswordSecure)
-$domainCred = New-Object System.Management.Automation.PSCredential ($domainAdminUser, $domainAdminPasswordSecure)
+# Extrair e validar as informações
+$vmIp = Get-ValidatedValue $credentials.vmIp "vmIp"
+$vmUser = Get-ValidatedValue $credentials.AdminUsername "AdminUsername"
+$vmPassword = Get-ValidatedValue $credentials.AdminPassword "AdminPassword"
+$domainAdminUser = Get-ValidatedValue $credentials.domainAdminUsername "DomainAdminUsername"
 
-# Adicionar a VM à lista TrustedHosts, se necessário
-$currentTrustedHosts = (Get-Item WSMan:\localhost\Client\TrustedHosts).Value
-if ($currentTrustedHosts -notcontains $vmIp) {
-    $newTrustedHosts = if ($currentTrustedHosts) { "$currentTrustedHosts,$vmIp" } else { $vmIp }
-    Set-Item WSMan:\localhost\Client\TrustedHosts -Value $newTrustedHosts -Force
+# Criar credenciais de acesso (SecureString e PSCredential)
+function Create-Credential {
+    param ([string]$username, [string]$password)
+    $securePassword = $password | ConvertTo-SecureString -AsPlainText -Force
+    return New-Object System.Management.Automation.PSCredential ($username, $securePassword)
 }
 
-# Script de instalação a ser executado na VM
+$vmCred = Create-Credential -username $vmUser -password $vmPassword
+$domainCred = Create-Credential -username $domainAdminUser -password $vmPassword
+
+# Configurar TrustedHosts
+function Update-TrustedHosts {
+    param ([string]$hostIp)
+    $currentTrustedHosts = (Get-Item WSMan:\localhost\Client\TrustedHosts).Value
+    if ($currentTrustedHosts -notcontains $hostIp) {
+        $newTrustedHosts = if ($currentTrustedHosts) { "$currentTrustedHosts,$hostIp" } else { $hostIp }
+        Set-Item WSMan:\localhost\Client\TrustedHosts -Value $newTrustedHosts -Force
+    }
+}
+
+Update-TrustedHosts -hostIp $vmIp
+
+# Script de instalação do Active Directory
 $scriptBlock = {
-    param ($safeModeAdminPassword, $domainCred)
-    
+    param (
+        [Parameter(Mandatory=$true)][SecureString]$safeModeAdminPassword,
+        [Parameter(Mandatory=$true)][PSCredential]$domainCred
+    )
+
     Install-WindowsFeature AD-Domain-Services -IncludeManagementTools
     Install-WindowsFeature RSAT-AD-PowerShell
     Install-WindowsFeature RSAT-ADDS
@@ -47,5 +78,10 @@ $scriptBlock = {
         -Force:$true
 }
 
-# Executar o script remotamente e remover a sessão
-Invoke-Command -ComputerName $vmIp -Credential $vmCred -ScriptBlock $scriptBlock -ArgumentList $domainAdminPasswordSecure, $domainCred
+# Executar o script remotamente
+try {
+    Invoke-Command -ComputerName $vmIp -Credential $vmCred -ScriptBlock $scriptBlock -ArgumentList ($vmPassword | ConvertTo-SecureString -AsPlainText -Force), $domainCred
+} catch {
+    Write-Error ("Erro ao executar o script remotamente na VM {0}: {1}" -f $vmIp, $_.Exception.Message)
+    exit 1
+}
