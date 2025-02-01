@@ -1,5 +1,5 @@
 ---
-- name: Load credentials_ad
+- name: Load credentials_ad and create inventory
   hosts: localhost
   gather_facts: no
   tasks:
@@ -11,9 +11,25 @@
 
     - name: Set credentials as facts
       set_fact:
-        vm_user: "{{ creds.AdminUsername }}"
-        vm_password: "{{ creds.AdminPassword }}"
+        ansible_user: "{{ creds.AdminUsername }}"
+        ansible_password: "{{ creds.AdminPassword }}"
+        ansible_host: "{{ creds.vmIp }}"
       no_log: true
+
+    - name: Create dynamic inventory
+      copy:
+        dest: "/tmp/hosts.ini"
+        content: |
+          [windows]
+          ad ansible_host={{ creds.vmIp }} ansible_port=5986
+
+          [windows:vars]
+          ansible_user={{ creds.AdminUsername }}
+          ansible_password={{ creds.AdminPassword }}
+          ansible_connection=winrm
+          ansible_winrm_server_cert_validation=ignore
+          ansible_winrm_transport=ssl
+      delegate_to: localhost
 
 - name: Configure Active Directory
   hosts: ad
@@ -33,7 +49,7 @@
 
     - name: Promote to domain controller
       win_shell: |
-        $SecureString = ConvertTo-SecureString "{{ hostvars['localhost']['vm_password'] }}" -AsPlainText -Force
+        $SecureString = ConvertTo-SecureString "{{ ansible_password }}" -AsPlainText -Force
         Install-ADDSForest `
           -DomainName "{{ domain_name }}" `
           -InstallDNS `
