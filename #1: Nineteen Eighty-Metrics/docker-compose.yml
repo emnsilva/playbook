@@ -1,0 +1,42 @@
+version: '3.8'
+services:
+  # Infraestrutura
+  prometheus:
+    image: prom/prometheus
+    ports: ["9090:9090"]
+    volumes: ["./prometheus.yml:/etc/prometheus/prometheus.yml"]
+
+  # Serviços Monitorados
+  nginx:
+    image: nginx/nginx-prometheus-exporter
+    ports: 
+      - "8080:80"    # Porta do NGINX
+      - "9113:9113"  # Porta das métricas
+    environment:
+      NGINX_PORT: 80
+
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_PASSWORD: BigBrother2024
+
+  postgres_exporter:
+    image: prometheuscommunity/postgres-exporter
+    environment:
+      DATA_SOURCE_NAME: "postgresql://postgres:BigBrother2024@postgres:5432/postgres?sslmode=disable"
+    depends_on: ["postgres"]
+
+  stress:
+    image: alexeiled/stress-ng:latest
+    command: ["--cpu", "4", "--vm", "2"]
+
+  # Exportadores
+  node_exporter:
+    image: prom/node-exporter
+    ports: ["9100:9100"]
+
+  netdata:
+    image: netdata/netdata
+    ports: ["19999:19999"]
+    cap_add: ["SYS_PTRACE"]
+    security_opt: ["apparmor:unconfined"]
