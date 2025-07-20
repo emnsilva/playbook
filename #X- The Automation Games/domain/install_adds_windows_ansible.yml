@@ -1,0 +1,59 @@
+---
+- name: Load credentials_ad and create inventory
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Load JSON file
+      include_vars:
+        file: /mnt/c/credentials_ad.json
+        name: creds
+      no_log: true
+
+    - name: Set credentials as facts
+      set_fact:
+        ansible_user: "{{ creds.AdminUsername }}"
+        ansible_password: "{{ creds.AdminPassword }}"
+        ansible_host: "{{ creds.vmIp }}"
+      no_log: true
+
+    - name: Create dynamic inventory
+      copy:
+        dest: "/tmp/hosts.ini"
+        content: |
+          [windows]
+          ad ansible_host={{ creds.vmIp }} ansible_port=5986
+
+          [windows:vars]
+          ansible_user={{ creds.AdminUsername }}
+          ansible_password={{ creds.AdminPassword }}
+          ansible_connection=winrm
+          ansible_winrm_server_cert_validation=ignore
+          ansible_winrm_transport=ssl
+      delegate_to: localhost
+
+- name: Configure Active Directory
+  hosts: ad
+  gather_facts: no
+  vars:
+    domain_name: "paranaue.com"
+  tasks:
+    - name: Ensure Active Directory is installed
+      win_feature:
+        name: AD-Domain-Services
+        state: present
+
+    - name: Install management tools
+      win_feature:
+        name: RSAT-AD-AdminCenter
+        state: present
+
+    - name: Promote to domain controller
+      win_shell: |
+        $SecureString = ConvertTo-SecureString "{{ ansible_password }}" -AsPlainText -Force
+        Install-ADDSForest `
+          -DomainName "{{ domain_name }}" `
+          -InstallDNS `
+          -SafeModeAdministratorPassword $SecureString `
+          -Force
+      args:
+        executable: powershell.exe
