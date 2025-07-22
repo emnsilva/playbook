@@ -7,6 +7,12 @@ terraform {
   }
 }
 
+# Declaração da variável necessária
+variable "TFC_AWS_RUN_ROLE_ARN" {
+  description = "The ARN of the AWS IAM Role to assume via OIDC"
+  type        = string
+}
+
 provider "aws" {
   region = "sa-east-1"
   
