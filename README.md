@@ -2,7 +2,7 @@
 
 Aqui, a ideia é simples: aprender DevOps na prática, explorando as principais ferramentas do mercado enquanto compartilhamos erros, acertos e conhecimento. Seja pra estudar, contribuir ou só acompanhar, o importante é botar a mão na massa. Você pode testar os labs abaixo, cada qual com um repositório que armazena os códigos.
 
-<span style="color:red">## #1- Nineteen Eighty-Metrics</span>  
+## #1- Nineteen Eighty-Metrics
 Fazendo referência ao livro "1984", este lab mostra como implementar observabilidade com Prometheus e Grafana, a partir de containers Docker rodando em um Ubuntu Server.
 
 ## #2- Vagrant Wars
