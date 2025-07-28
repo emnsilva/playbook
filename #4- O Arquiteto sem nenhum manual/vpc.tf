@@ -9,22 +9,24 @@ terraform {
 
 # Versão CERTA - Com alias (apelido)
 provider "aws" {
-  region = "sa-east-1"  # Zé Paulista
-  alias  = "sp"         # Apelido pra não confundir
+  region = "sa-east-1"  
+  alias  = "sp"         
 }
 
 provider "aws" {
-  region = "us-east-1"  # Zé Americano
-  alias  = "va"         # Outro apelido
+  region = "us-east-1"  
+  alias  = "va"         
 }
 
 # Agora sim podemos chamar cada um pelo apelido!
 resource "aws_vpc" "main" {
-  provider = aws.sp  # Esse é o Zé Paulista
+  provider = aws.sp
   cidr_block = "10.0.0.0/16"
+  tags = { Name = "main" }
 }
 
 resource "aws_vpc" "backup" {
-  provider = aws.va  # Esse é o Zé Americano
+  provider = aws.va
   cidr_block = "10.1.0.0/16"
+  tags = { Name = "backup" }
 }
