@@ -1,14 +1,21 @@
-# 1. Configura as regiões
-provider "aws" { region = "sa-east-1" }  # Nuvem de SP
-provider "aws" { region = "us-east-1" }  # Nuvem dos EUA
+# Versão CERTA - Com alias (apelido)
+provider "aws" {
+  region = "sa-east-1"  # Zé Paulista
+  alias  = "sp"         # Apelido pra não confundir
+}
 
-# 2. Cria duas VPCs (redes privadas)
+provider "aws" {
+  region = "us-east-1"  # Zé Americano
+  alias  = "va"         # Outro apelido
+}
+
+# Agora sim podemos chamar cada um pelo apelido!
 resource "aws_vpc" "main" {
-  cidr_block = "10.0.0.0/16"  # Rede grande em SP
-  tags = { Name = "Casa-Digital" }  # Coloca nome
+  provider = aws.sp  # Esse é o Zé Paulista
+  cidr_block = "10.0.0.0/16"
 }
 
 resource "aws_vpc" "backup" {
-  cidr_block = "10.1.0.0/16"  # Rede gêmea nos EUA
-  tags = { Name = "Casa-de-Veraneio" }  # Nome diferente
+  provider = aws.va  # Esse é o Zé Americano
+  cidr_block = "10.1.0.0/16"
 }
