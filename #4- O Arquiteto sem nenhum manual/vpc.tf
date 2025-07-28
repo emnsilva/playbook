@@ -1,3 +1,12 @@
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+  }
+}
+
 # Versão CERTA - Com alias (apelido)
 provider "aws" {
   region = "sa-east-1"  # Zé Paulista
